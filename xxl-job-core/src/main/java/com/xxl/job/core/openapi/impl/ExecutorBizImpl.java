@@ -49,7 +49,7 @@ public class ExecutorBizImpl implements ExecutorBiz {
     public Response<String> run(TriggerRequest triggerRequest) {
         // load old：jobHandler + jobThread
         JobThread jobThread = XxlJobExecutor.loadJobThread(triggerRequest.getJobId());
-        IJobHandler jobHandler = jobThread!=null?jobThread.getHandler():null;
+        IJobHandler jobHandler = jobThread != null ? jobThread.getHandler() : null;
         String removeOldReason = null;
 
         // valid：jobHandler + jobThread
@@ -60,7 +60,7 @@ public class ExecutorBizImpl implements ExecutorBiz {
             IJobHandler newJobHandler = XxlJobExecutor.loadJobHandler(triggerRequest.getExecutorHandler());
 
             // valid old jobThread
-            if (jobThread!=null && jobHandler != newJobHandler) {
+            if (jobThread != null && jobHandler != newJobHandler) {
                 // change handler, need kill old thread
                 removeOldReason = "change jobhandler or glue type, and terminate the old job thread.";
 
@@ -72,7 +72,8 @@ public class ExecutorBizImpl implements ExecutorBiz {
             if (jobHandler == null) {
                 jobHandler = newJobHandler;
                 if (jobHandler == null) {
-                    return Response.of(XxlJobContext.HANDLE_CODE_FAIL, "job handler [" + triggerRequest.getExecutorHandler() + "] not found.");
+                    return Response.of(XxlJobContext.HANDLE_CODE_FAIL,
+                            "job handler [" + triggerRequest.getExecutorHandler() + "] not found.");
                 }
             }
 
@@ -81,7 +82,8 @@ public class ExecutorBizImpl implements ExecutorBiz {
             // valid old jobThread
             if (jobThread != null &&
                     !(jobThread.getHandler() instanceof GlueJobHandler
-                        && ((GlueJobHandler) jobThread.getHandler()).getGlueUpdatetime()== triggerRequest.getGlueUpdatetime() )) {
+                            && ((GlueJobHandler) jobThread.getHandler()).getGlueUpdatetime() == triggerRequest
+                                    .getGlueUpdatetime())) {
                 // change handler or gluesource updated, need kill old thread
                 removeOldReason = "change job source or glue type, and terminate the old job thread.";
 
@@ -92,19 +94,21 @@ public class ExecutorBizImpl implements ExecutorBiz {
             // valid handler
             if (jobHandler == null) {
                 try {
-                    IJobHandler originJobHandler = GlueFactory.getInstance().loadNewInstance(triggerRequest.getGlueSource());
+                    IJobHandler originJobHandler = GlueFactory.getInstance()
+                            .loadNewInstance(triggerRequest.getGlueSource());
                     jobHandler = new GlueJobHandler(originJobHandler, triggerRequest.getGlueUpdatetime());
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
                     return Response.of(XxlJobContext.HANDLE_CODE_FAIL, e.getMessage());
                 }
             }
-        } else if (glueTypeEnum!=null && glueTypeEnum.isScript()) {
+        } else if (glueTypeEnum != null && glueTypeEnum.isScript()) {
 
             // valid old jobThread
             if (jobThread != null &&
                     !(jobThread.getHandler() instanceof ScriptJobHandler
-                            && ((ScriptJobHandler) jobThread.getHandler()).getGlueUpdatetime()== triggerRequest.getGlueUpdatetime() )) {
+                            && ((ScriptJobHandler) jobThread.getHandler()).getGlueUpdatetime() == triggerRequest
+                                    .getGlueUpdatetime())) {
                 // change script or gluesource updated, need kill old thread
                 removeOldReason = "change job source or glue type, and terminate the old job thread.";
 
@@ -114,19 +118,44 @@ public class ExecutorBizImpl implements ExecutorBiz {
 
             // valid handler
             if (jobHandler == null) {
-                jobHandler = new ScriptJobHandler(triggerRequest.getJobId(), triggerRequest.getGlueUpdatetime(), triggerRequest.getGlueSource(), GlueTypeEnum.match(triggerRequest.getGlueType()));
+                jobHandler = new ScriptJobHandler(triggerRequest.getJobId(), triggerRequest.getGlueUpdatetime(),
+                        triggerRequest.getGlueSource(), GlueTypeEnum.match(triggerRequest.getGlueType()));
+            }
+        } else if (GlueTypeEnum.GLUE_K8S_JOB == glueTypeEnum) {
+
+            // valid old jobThread
+            if (jobThread != null) {
+                // K8s Job handler can be reused, no need to kill
+                // But if glue source changed, we should refresh
+                removeOldReason = "refresh K8s job handler";
+                jobThread = null;
+                jobHandler = null;
+            }
+
+            // valid handler
+            if (jobHandler == null) {
+                try {
+                    jobHandler = GlueFactory.getInstance().loadK8sJobHandler();
+                } catch (Exception e) {
+                    logger.error(e.getMessage(), e);
+                    return Response.of(XxlJobContext.HANDLE_CODE_FAIL,
+                            "Load K8s Job Handler failed: " + e.getMessage());
+                }
             }
         } else {
-            return Response.of(XxlJobContext.HANDLE_CODE_FAIL, "glueType[" + triggerRequest.getGlueType() + "] is not valid.");
+            return Response.of(XxlJobContext.HANDLE_CODE_FAIL,
+                    "glueType[" + triggerRequest.getGlueType() + "] is not valid.");
         }
 
         // executor block strategy
         if (jobThread != null) {
-            ExecutorBlockStrategyEnum blockStrategy = ExecutorBlockStrategyEnum.match(triggerRequest.getExecutorBlockStrategy(), null);
+            ExecutorBlockStrategyEnum blockStrategy = ExecutorBlockStrategyEnum
+                    .match(triggerRequest.getExecutorBlockStrategy(), null);
             if (ExecutorBlockStrategyEnum.DISCARD_LATER == blockStrategy) {
                 // discard when running
                 if (jobThread.isRunningOrHasQueue()) {
-                    return Response.of(XxlJobContext.HANDLE_CODE_FAIL, "block strategy effect："+ExecutorBlockStrategyEnum.DISCARD_LATER.getTitle());
+                    return Response.of(XxlJobContext.HANDLE_CODE_FAIL,
+                            "block strategy effect：" + ExecutorBlockStrategyEnum.DISCARD_LATER.getTitle());
                 }
             } else if (ExecutorBlockStrategyEnum.COVER_EARLY == blockStrategy) {
                 // kill running jobThread
@@ -158,13 +187,14 @@ public class ExecutorBizImpl implements ExecutorBiz {
             return Response.ofSuccess();
         }
 
-        return Response.ofSuccess( "job thread already killed.");
+        return Response.ofSuccess("job thread already killed.");
     }
 
     @Override
     public Response<LogResult> log(LogRequest logRequest) {
         // log filename: logPath/yyyy-MM-dd/9999.log
-        String logFileName = XxlJobFileAppender.makeLogFileName(new Date(logRequest.getLogDateTim()), logRequest.getLogId());
+        String logFileName = XxlJobFileAppender.makeLogFileName(new Date(logRequest.getLogDateTim()),
+                logRequest.getLogId());
 
         LogResult logResult = XxlJobFileAppender.readLog(logFileName, logRequest.getFromLineNum());
         return Response.ofSuccess(logResult);

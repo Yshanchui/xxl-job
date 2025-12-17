@@ -13,6 +13,7 @@
         <module>xxl-job-executor-sample-frameless</module>
         <module>xxl-job-executor-sample-springboot</module>
         <module>xxl-job-executor-sample-springboot-ai</module>
+        <module>xxl-job-executor-sample-k8s</module>
     </modules>
 
     <properties>

@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xxl-job-executor-k8s
+  namespace: default
+  labels:
+    app: xxl-job-executor-k8s
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xxl-job-executor-k8s
+  template:
+    metadata:
+      labels:
+        app: xxl-job-executor-k8s
+    spec:
+      serviceAccountName: xxl-job-executor
+      containers:
+      - name: executor
+        image: xxl-job-executor:k8s
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9999
+          name: executor
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xxl-job-executor-k8s
+  namespace: default
+spec:
+  selector:
+    app: xxl-job-executor-k8s
+  ports:
+  - protocol: TCP
+    port: 9999
+    targetPort: 9999
+  type: ClusterIP

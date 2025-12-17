@@ -43,6 +43,24 @@
 				</div>
 			</div>
 		</form>
+		
+		<!-- OIDC Login Section -->
+		<div class="login-box-body" style="margin-top: 10px;">
+			<div class="row">
+				<div class="col-xs-12">
+					<div style="text-align: center; margin: 10px 0;">
+						<span style="color: #999;">———— ${I18n.login_or} ————</span>
+					</div>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-xs-12">
+					<a href="${request.contextPath}/auth/oidc/authorize" class="btn btn-default btn-block btn-flat">
+						<i class="fa fa-sign-in"></i> ${I18n.login_oidc_btn}
+					</a>
+				</div>
+			</div>
+		</div>
 	</div>
 	<!-- 2-biz end -->
 

@@ -2,6 +2,7 @@ package com.xxl.job.admin.controller.base;
 
 import com.xxl.job.admin.mapper.XxlJobUserMapper;
 import com.xxl.job.admin.model.XxlJobUser;
+import com.xxl.job.admin.service.OidcAuthService;
 import com.xxl.job.admin.util.I18nUtil;
 import com.xxl.sso.core.annotation.XxlSso;
 import com.xxl.sso.core.helper.XxlSsoHelper;
@@ -22,6 +23,7 @@ import org.springframework.web.servlet.view.RedirectView;
 
 /**
  * index controller
+ * 
  * @author xuxueli 2015-12-19 16:13:16
  */
 @Controller
@@ -31,6 +33,9 @@ public class LoginController {
 	@Resource
 	private XxlJobUserMapper xxlJobUserMapper;
 
+	@Resource
+	private OidcAuthService oidcAuthService;
+
 	@RequestMapping("/login")
 	@XxlSso(login = false)
 	public ModelAndView login(HttpServletRequest request, HttpServletResponse response, ModelAndView modelAndView) {
@@ -39,46 +44,47 @@ public class LoginController {
 		Response<LoginInfo> loginInfoResponse = XxlSsoHelper.loginCheckWithCookie(request, response);
 
 		if (loginInfoResponse.isSuccess()) {
-			modelAndView.setView(new RedirectView("/",true,false));
+			modelAndView.setView(new RedirectView("/", true, false));
 			return modelAndView;
 		}
 		return new ModelAndView("base/login");
 	}
 
-	@RequestMapping(value="/doLogin", method=RequestMethod.POST)
+	@RequestMapping(value = "/doLogin", method = RequestMethod.POST)
 	@ResponseBody
-	@XxlSso(login=false)
-	public Response<String> doLogin(HttpServletRequest request, HttpServletResponse response, String userName, String password, String ifRemember){
+	@XxlSso(login = false)
+	public Response<String> doLogin(HttpServletRequest request, HttpServletResponse response, String userName,
+			String password, String ifRemember) {
 
 		// param
 		boolean ifRem = StringTool.isNotBlank(ifRemember) && "on".equals(ifRemember);
-		if (StringTool.isBlank(userName) || StringTool.isBlank(password)){
-			return Response.ofFail( I18nUtil.getString("login_param_empty") );
+		if (StringTool.isBlank(userName) || StringTool.isBlank(password)) {
+			return Response.ofFail(I18nUtil.getString("login_param_empty"));
 		}
 
 		// valid user、status
 		XxlJobUser xxlJobUser = xxlJobUserMapper.loadByUserName(userName);
 		if (xxlJobUser == null) {
-			return Response.ofFail( I18nUtil.getString("login_param_unvalid") );
+			return Response.ofFail(I18nUtil.getString("login_param_unvalid"));
 		}
 
 		// valid passowrd
 		String passwordHash = SHA256Tool.sha256(password);
 		if (!passwordHash.equals(xxlJobUser.getPassword())) {
-			return Response.ofFail( I18nUtil.getString("login_param_unvalid") );
+			return Response.ofFail(I18nUtil.getString("login_param_unvalid"));
 		}
 
 		// xxl-sso, do login
 		LoginInfo loginInfo = new LoginInfo(String.valueOf(xxlJobUser.getId()), UUIDTool.getSimpleUUID());
-		Response<String> result= XxlSsoHelper.loginWithCookie(loginInfo, response, ifRem);
+		Response<String> result = XxlSsoHelper.loginWithCookie(loginInfo, response, ifRem);
 
 		return Response.of(result.getCode(), result.getMsg());
 	}
-	
-	@RequestMapping(value="/logout", method=RequestMethod.POST)
+
+	@RequestMapping(value = "/logout", method = RequestMethod.POST)
 	@ResponseBody
-	@XxlSso(login=false)
-	public Response<String> logout(HttpServletRequest request, HttpServletResponse response){
+	@XxlSso(login = false)
+	public Response<String> logout(HttpServletRequest request, HttpServletResponse response) {
 
 		// xxl-sso, do logout
 		Response<String> result = XxlSsoHelper.logoutWithCookie(request, response);
@@ -89,18 +95,20 @@ public class LoginController {
 	@RequestMapping("/updatePwd")
 	@ResponseBody
 	@XxlSso
-	public Response<String> updatePwd(HttpServletRequest request, String oldPassword, String password){
+	public Response<String> updatePwd(HttpServletRequest request, String oldPassword, String password) {
 
 		// valid
-		if (oldPassword==null || oldPassword.trim().isEmpty()){
-			return Response.ofFail(I18nUtil.getString("system_please_input") + I18nUtil.getString("change_pwd_field_oldpwd"));
+		if (oldPassword == null || oldPassword.trim().isEmpty()) {
+			return Response
+					.ofFail(I18nUtil.getString("system_please_input") + I18nUtil.getString("change_pwd_field_oldpwd"));
 		}
-		if (password==null || password.trim().isEmpty()){
-			return Response.ofFail(I18nUtil.getString("system_please_input") + I18nUtil.getString("change_pwd_field_oldpwd"));
+		if (password == null || password.trim().isEmpty()) {
+			return Response
+					.ofFail(I18nUtil.getString("system_please_input") + I18nUtil.getString("change_pwd_field_oldpwd"));
 		}
 		password = password.trim();
-		if (!(password.length()>=4 && password.length()<=20)) {
-			return Response.ofFail(I18nUtil.getString("system_lengh_limit")+"[4-20]" );
+		if (!(password.length() >= 4 && password.length() <= 20)) {
+			return Response.ofFail(I18nUtil.getString("system_lengh_limit") + "[4-20]");
 		}
 
 		// md5 password
@@ -111,7 +119,8 @@ public class LoginController {
 		Response<LoginInfo> loginInfoResponse = XxlSsoHelper.loginCheckWithAttr(request);
 		XxlJobUser existUser = xxlJobUserMapper.loadByUserName(loginInfoResponse.getData().getUserName());
 		if (!oldPasswordHash.equals(existUser.getPassword())) {
-			return Response.ofFail(I18nUtil.getString("change_pwd_field_oldpwd") + I18nUtil.getString("system_unvalid"));
+			return Response
+					.ofFail(I18nUtil.getString("change_pwd_field_oldpwd") + I18nUtil.getString("system_unvalid"));
 		}
 
 		// write new
@@ -119,6 +128,57 @@ public class LoginController {
 		xxlJobUserMapper.update(existUser);
 
 		return Response.ofSuccess();
+	}
+
+	/**
+	 * OIDC Authorization - Redirect to OIDC Provider
+	 */
+	@RequestMapping("/oidc/authorize")
+	@XxlSso(login = false)
+	public ModelAndView oidcAuthorize(HttpServletRequest request, HttpServletResponse response) {
+		if (!oidcAuthService.isOidcEnabled()) {
+			return new ModelAndView("redirect:/auth/login");
+		}
+
+		// Generate state for CSRF protection
+		String state = oidcAuthService.generateState();
+		request.getSession().setAttribute("oidc_state", state);
+
+		// Generate authorization URL
+		String authUrl = oidcAuthService.generateAuthorizationUrl(state);
+
+		// Redirect to OIDC provider
+		return new ModelAndView("redirect:" + authUrl);
+	}
+
+	/**
+	 * OIDC Callback - Handle callback from OIDC Provider
+	 */
+	@RequestMapping("/oidc/callback")
+	@XxlSso(login = false)
+	public ModelAndView oidcCallback(HttpServletRequest request, HttpServletResponse response,
+			String code, String state) {
+		if (!oidcAuthService.isOidcEnabled()) {
+			return new ModelAndView("redirect:/auth/login");
+		}
+
+		// Get expected state from session
+		String expectedState = (String) request.getSession().getAttribute("oidc_state");
+		request.getSession().removeAttribute("oidc_state");
+
+		// Handle OIDC callback
+		Response<LoginInfo> loginInfoResponse = oidcAuthService.handleCallback(code, state, expectedState);
+
+		if (!loginInfoResponse.isSuccess()) {
+			// Authentication failed, redirect to login with error
+			return new ModelAndView("redirect:/auth/login?error=oidc_failed");
+		}
+
+		// Login successful, set cookie and redirect to home
+		LoginInfo loginInfo = loginInfoResponse.getData();
+		XxlSsoHelper.loginWithCookie(loginInfo, response, false);
+
+		return new ModelAndView("redirect:/");
 	}
 
 }
