@@ -4,8 +4,8 @@ import com.xxl.job.admin.constant.TriggerStatus;
 import com.xxl.job.admin.model.XxlJobInfo;
 import com.xxl.job.admin.scheduler.config.XxlJobAdminBootstrap;
 import com.xxl.job.admin.scheduler.misfire.MisfireStrategyEnum;
-import com.xxl.job.admin.scheduler.type.ScheduleTypeEnum;
 import com.xxl.job.admin.scheduler.trigger.TriggerTypeEnum;
+import com.xxl.job.admin.scheduler.type.ScheduleTypeEnum;
 import com.xxl.tool.core.CollectionTool;
 import com.xxl.tool.core.MapTool;
 import org.slf4j.Logger;
@@ -145,7 +145,13 @@ public class JobScheduleHelper {
                         }
                     } finally {
                         // transaction commit
-                        XxlJobAdminBootstrap.getInstance().getTransactionManager().commit(transactionStatus);   // avlid schedule repeat
+                        try {
+                            if (transactionStatus != null) {
+                                XxlJobAdminBootstrap.getInstance().getTransactionManager().commit(transactionStatus);   // avlid schedule repeat
+                            }
+                        } catch (Throwable e) {
+                            logger.error(">>>>>>>>>>> xxl-job, JobScheduleHelper#scheduleThread transaction commit error:{}", e.getMessage(), e);
+                        }
                     }
                     // transaction end
                     long cost = System.currentTimeMillis()-start;
