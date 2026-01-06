@@ -3,11 +3,10 @@ package com.xxl.job.executor.sample.frameless.jobhandler;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import com.xxl.tool.core.StringTool;
-import com.xxl.tool.gson.GsonTool;
+import com.xxl.tool.json.GsonTool;
 import com.xxl.tool.http.HttpTool;
 import com.xxl.tool.http.http.HttpResponse;
 import com.xxl.tool.http.http.enums.ContentType;
-import com.xxl.tool.http.http.enums.Header;
 import com.xxl.tool.http.http.enums.Method;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * @author xuxueli 2019-12-11 21:52:51
  */
 public class SampleXxlJob {
-    private static Logger logger = LoggerFactory.getLogger(SampleXxlJob.class);
+    private static final Logger logger = LoggerFactory.getLogger(SampleXxlJob.class);
 
 
     /**
